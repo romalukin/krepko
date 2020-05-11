@@ -1,5 +1,6 @@
 import requests
 import xlsxwriter
+import os
 from bs4 import BeautifulSoup
 from pprint import pprint
 
@@ -27,7 +28,7 @@ def get_catalog(url_link: str) -> dict:
     return catalog
 
 def  get_products(catalog_name: str, url_link: str) -> list:
-    url_home = 'https://krepkoshop.com/category'
+    url_home = 'https://krepkoshop.com'
     product_list = []
     #get the html of site 
     result = requests.get(url_link)
@@ -36,21 +37,19 @@ def  get_products(catalog_name: str, url_link: str) -> list:
     soup = BeautifulSoup(src, 'lxml')
 
 
-    catalog = soup.find_all('li', {'itemtype': 'http://schema.org/Product'})
+    catalog = soup.find_all('div', {'class': 'product-blb-name'})
 
-    for card in catalog:            
+    for card in catalog:           
         product = {
             'name': '',
             'old_price': 0,
             'sale': 0,
             'price': 0,
-            'description': '',
             'category': catalog_name,
             'url': ''
         }
         product['name'] = card.find('h5', {'itemprop': 'name'}).find('span').string.replace('\n', ' ')
         product['url'] = url_home + str(card.find('a', {'class': 'product-name'})['href'])
-        product['description'] = card.find('meta', {'itemprop': 'description'})['content']
         product['price'] = int(card.find('span', {'class':'price nowrap'}).contents[0].strip(' руб.').replace(' ',''))
         if card.find('span', {'class':'sale-compare-block'}):
             product['old_price'] = int(card.find('span', {'class':'compare-at-price nowrap'}).string.strip(' руб.').replace(' ',''))
@@ -60,17 +59,38 @@ def  get_products(catalog_name: str, url_link: str) -> list:
         product_list.append(product)
     return product_list
 
+def write_to_table(product_list:list) -> None:
+    
+    workbook = xlsxwriter.Workbook('C:/Users/romal/Documents/github/krepko/krepko-prices.xlsx')
+    worksheet = workbook.add_worksheet()
+    bold = workbook.add_format({'bold': True})
+
+    worksheet.write('A1', 'наименование', bold)
+    worksheet.write('B1', 'старая цена', bold)
+    worksheet.write('C1', 'скидка', bold)
+    worksheet.write('D1', 'цена', bold)
+    worksheet.write('F1', 'категория', bold)
+    worksheet.write('G1', 'ссылка', bold)
+
+    row = 1
+    
+    for category in product_list:
+        for card in category:
+            print(card)
+            col = 0
+            worksheet.write_string(row, col, card['name'])
+            worksheet.write_number(row, col + 1, card['old_price'])
+            worksheet.write_number(row, col + 2, card['sale'])
+            worksheet.write_number(row, col + 3, card['price'])
+            worksheet.write_string(row, col + 5, card['category'])
+            worksheet.write_url(row, col + 6, card['url'])
+            row += 1
+    workbook.close()
+    return
 
 product_list = []
 #krepko site
 catalog = get_catalog("https://krepkoshop.com/category/")
 for category in catalog:
     product_list.append(get_products(category, catalog[category]))
-pprint(catalog)
-
-with open('C:/Users/romal/Documents/github/krepko/test.txt', 'w', encoding='utf-8') as f:
-    for category in product_list:
-        for card in category:
-            f.write('-----\n')
-            for field in card:
-                f.write('{}: {}\n'.format(field, card[field]))
+write_to_table(product_list)
