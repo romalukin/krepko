@@ -6,20 +6,18 @@ from bs4 import BeautifulSoup
 
 
 def get_catalog(url_link: str) -> dict:
+    urls = []
+    category_list= []
     #get the html of site 
     result = requests.get(url_link)
     src = result.content
     #make the content good to work with beautifulsoup
     soup = BeautifulSoup(src, 'lxml')
 
-    urls = []
-    category_list= []
-
     category = soup.find_all('div', {'class': 'catalog-block'})
     for cat in category:
         urls.append(url_link + str(cat.find('a')['href']).replace('/category/', ''))
         category_list.append(cat.find('span').string)
-
     catalog = dict(zip(category_list, urls))
     return catalog
 
@@ -33,7 +31,6 @@ def get_products(catalog_name: str, url_link: str) -> list:
     soup = BeautifulSoup(src, 'lxml')
 
     catalog = soup.find_all('div', {'class': 'product-blb-name'})
-
     for card in catalog:           
         product = {
             'name': '',
@@ -59,18 +56,14 @@ def write_in_table(product_list:list) -> None:
     workbook = xlsxwriter.Workbook('C:/Users/romal/Documents/github/krepko/krepko-prices {}.xlsx'.format(today.strftime("%d %m %Y %H %M")))
     worksheet = workbook.add_worksheet()
     bold = workbook.add_format({'bold': True})
-
     worksheet.write('A1', 'наименование', bold)
     worksheet.write('B1', 'старая цена', bold)
     worksheet.write('C1', 'скидка', bold)
     worksheet.write('D1', 'цена', bold)
     worksheet.write('E1', 'категория', bold)
     worksheet.write('F1', 'ссылка', bold)
-
     row = 1
-    
     for card in product_list:
-        print(card)
         col = 0
         worksheet.write_string(row, col, card['name'])
         worksheet.write_number(row, col + 1, card['old_price'])
@@ -82,19 +75,25 @@ def write_in_table(product_list:list) -> None:
     workbook.close()
     return
 
-category_list = []
-product_list = []
-#krepko site
-catalog = get_catalog("https://krepkoshop.com/category/")
+def write_in_json (product_list: list) -> None:
+    today = datetime.datetime.now()
+    with open ('C:/Users/romal/Documents/github/krepko/krepko-prices {}.json'.format(today.strftime("%d %m %Y %H %M")), 'w', encoding='utf-8') as f:
+        json.dump(product_list, f, ensure_ascii=False)
+    return
 
-for category in catalog:
-    category_list.append(get_products(category, catalog[category]))
-for category in category_list:
-    for product in category:
-        product_list.append(product) 
+def start_scrape():
+    category_list = []
+    product_list = []
+    #krepko site
+    catalog = get_catalog("https://krepkoshop.com/category/")
+    for category in catalog:
+        category_list.append(get_products(category, catalog[category]))
+    for category in category_list:
+        for product in category:
+            product_list.append(product) 
+    write_in_table(product_list)
+    write_in_json(product_list)
+    return
 
-write_in_table(product_list)
+start_scrape()
 
-today = datetime.datetime.now()
-with open ('C:/Users/romal/Documents/github/krepko/krepko-prices {}.json'.format(today.strftime("%d %m %Y %H %M")), 'w', encoding='utf-8') as f:
-    json.dump(product_list, f, ensure_ascii=False)
